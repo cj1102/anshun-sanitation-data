@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.anshun.dms.mapper.AiKnowledgeMapper">
+  <select id="selectUserId" resultType="int">SELECT user_id FROM t_user WHERE username=#{username} AND status='active'</select>
+  <select id="selectDocuments" resultType="com.anshun.dms.vo.AiKnowledgeDocumentVO">
+    SELECT d.document_id, d.title, d.original_filename, d.content_type, d.file_size, d.visible_roles,
+      d.uploader_username, d.create_time, COUNT(c.chunk_id) AS chunk_count
+    FROM ai_knowledge_document d LEFT JOIN ai_knowledge_chunk c ON c.document_id=d.document_id
+    WHERE d.deleted=0 GROUP BY d.document_id ORDER BY d.document_id DESC
+  </select>
+  <select id="selectDocument" resultType="com.anshun.dms.mapper.AiKnowledgeMapper$KnowledgeDocumentRecord">
+    SELECT document_id, title, object_name, visible_roles FROM ai_knowledge_document
+    WHERE document_id=#{documentId} AND deleted=0
+  </select>
+  <select id="selectAccessibleChunks" resultType="com.anshun.dms.mapper.AiKnowledgeMapper$KnowledgeChunkCandidate">
+    SELECT c.chunk_id, d.document_id, d.title, c.chunk_no, c.page_start, c.page_end, c.chunk_text
+    FROM ai_knowledge_document d JOIN ai_knowledge_chunk c ON c.document_id=d.document_id
+    WHERE d.deleted=0 AND d.status='READY'
+      AND (d.visible_roles='ALL'
+      <if test="roles != null and roles.size() > 0">
+        OR (
+          <foreach collection="roles" item="role" separator=" OR ">
+            FIND_IN_SET(#{role}, d.visible_roles) &gt; 0
+          </foreach>
+        )
+      </if>)
+    ORDER BY c.chunk_id DESC LIMIT 1000
+  </select>
+  <select id="selectAccessibleChunksByIds" resultType="com.anshun.dms.mapper.AiKnowledgeMapper$KnowledgeChunkCandidate">
+    SELECT c.chunk_id, d.document_id, d.title, c.chunk_no, c.page_start, c.page_end, c.chunk_text
+    FROM ai_knowledge_chunk c JOIN ai_knowledge_document d ON d.document_id=c.document_id
+    WHERE c.chunk_id IN
+    <foreach collection="chunkIds" item="chunkId" open="(" separator="," close=")">
+      #{chunkId}
+    </foreach>
+      AND d.deleted=0 AND d.status='READY'
+      AND (d.visible_roles='ALL'
+      <if test="roles != null and roles.size() > 0">
+        OR (
+          <foreach collection="roles" item="role" separator=" OR ">
+            FIND_IN_SET(#{role}, d.visible_roles) &gt; 0
+          </foreach>
+        )
+      </if>)
+  </select>
+  <select id="selectChunksByDocument" resultType="com.anshun.dms.mapper.AiKnowledgeMapper$KnowledgeChunkCandidate">
+    SELECT c.chunk_id, d.document_id, d.title, c.chunk_no, c.page_start, c.page_end, c.chunk_text
+    FROM ai_knowledge_document d JOIN ai_knowledge_chunk c ON c.document_id=d.document_id
+    WHERE d.document_id=#{documentId} AND d.deleted=0 AND d.status='READY' ORDER BY c.chunk_no ASC
+  </select>
+  <select id="selectAllChunks" resultType="com.anshun.dms.mapper.AiKnowledgeMapper$KnowledgeChunkCandidate">
+    SELECT c.chunk_id, d.document_id, d.title, c.chunk_no, c.page_start, c.page_end, c.chunk_text
+    FROM ai_knowledge_document d JOIN ai_knowledge_chunk c ON c.document_id=d.document_id
+    WHERE d.deleted=0 AND d.status='READY' ORDER BY d.document_id ASC, c.chunk_no ASC
+  </select>
+  <insert id="insertDocument" useGeneratedKeys="true" keyProperty="documentId" keyColumn="document_id">
+    INSERT INTO ai_knowledge_document (title, original_filename, object_name, content_type, file_size, visible_roles, uploader_id, uploader_username)
+    VALUES (#{title}, #{originalFilename}, #{objectName}, #{contentType}, #{fileSize}, #{visibleRoles}, #{uploaderId}, #{uploaderUsername})
+  </insert>
+  <insert id="insertChunks">
+    INSERT INTO ai_knowledge_chunk (document_id, chunk_no, page_start, page_end, chunk_text) VALUES
+    <foreach collection="chunks" item="chunk" separator=",">
+      (#{chunk.documentId}, #{chunk.chunkNo}, #{chunk.pageStart}, #{chunk.pageEnd}, #{chunk.chunkText})
+    </foreach>
+  </insert>
+  <update id="logicalDelete">UPDATE ai_knowledge_document SET deleted=1 WHERE document_id=#{documentId} AND deleted=0</update>
+</mapper>

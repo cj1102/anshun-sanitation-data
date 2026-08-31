@@ -1,0 +1,91 @@
+services:
+  mysql:
+    image: mysql:8.0@sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b
+    environment:
+      MYSQL_DATABASE: anshun_ad_db
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-change-me-in-production}
+    ports: ["${MYSQL_HOST_PORT:-3307}:3306"]
+    volumes: ["mysql-data:/var/lib/mysql"]
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$${MYSQL_ROOT_PASSWORD}\" --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7.4-alpine@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99
+    ports: ["${REDIS_HOST_PORT:-6380}:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin-change-me}
+    ports: ["${MINIO_API_HOST_PORT:-9002}:9000", "${MINIO_CONSOLE_HOST_PORT:-9003}:9001"]
+    volumes: ["minio-data:/data"]
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  qdrant:
+    image: qdrant/qdrant:v1.18.3@sha256:0bd98fa7977f1e75694779359ca4e212822e5a71334e28421182f72f209d5286
+    ports: ["${QDRANT_HOST_PORT:-6333}:6333"]
+    volumes: ["qdrant-data:/qdrant/storage"]
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/6333'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: ..
+      dockerfile: backend-java/Dockerfile
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-default}
+      DB_HOST: mysql
+      DB_NAME: anshun_ad_db
+      DB_USERNAME: root
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD:-change-me-in-production}
+      REDIS_HOST: redis
+      CACHE_TYPE: redis
+      TOKEN_BLACKLIST_ENABLED: "true"
+      TOKEN_BLACKLIST_FAIL_CLOSED: ${TOKEN_BLACKLIST_FAIL_CLOSED:-true}
+      REGISTRATION_ENABLED: ${REGISTRATION_ENABLED:-false}
+      # Local-demo fallback only. Production must set SPRING_PROFILES_ACTIVE=prod and JWT_SECRET.
+      JWT_SECRET: ${JWT_SECRET:-YW5zaHVuLWFkLWRtcy1kZW1vLXNlY3JldC1rZXktMjAyNi0xMjM0NTY=}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin-change-me}
+      VECTOR_STORE_ENABLED: "true"
+      QDRANT_BASE_URL: http://qdrant:6333
+      AI_EMBEDDING_PROVIDER: ${AI_EMBEDDING_PROVIDER:-hash}
+      AI_EMBEDDING_BASE_URL: ${AI_EMBEDDING_BASE_URL:-}
+      AI_EMBEDDING_API_KEY: ${AI_EMBEDDING_API_KEY:-}
+      AI_EMBEDDING_MODEL: ${AI_EMBEDDING_MODEL:-local-hash-ngram-v1}
+      AI_EMBEDDING_DIMENSIONS: ${AI_EMBEDDING_DIMENSIONS:-256}
+      QDRANT_VECTOR_DIMENSIONS: ${QDRANT_VECTOR_DIMENSIONS:-256}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-v4-pro}
+      DEEPSEEK_BYPASS_SYSTEM_PROXY: ${DEEPSEEK_BYPASS_SYSTEM_PROXY:-false}
+    ports: ["${APP_HOST_PORT:-8082}:8081"]
+    init: true
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      minio: { condition: service_healthy }
+      qdrant: { condition: service_healthy }
+
+volumes:
+  mysql-data:
+  minio-data:
+  qdrant-data:

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.anshun.dms.mapper.AiUserMemoryMapper">
+  <select id="selectUserId" resultType="int">
+    SELECT user_id FROM t_user WHERE username=#{username} AND status='active'
+  </select>
+  <select id="selectList" resultType="com.anshun.dms.vo.AiUserMemoryVO">
+    SELECT memory_id, memory_type, content, source, create_time
+    FROM ai_user_memory WHERE user_id=#{userId}
+    ORDER BY update_time DESC, memory_id DESC LIMIT #{limit}
+  </select>
+  <select id="selectByHash" resultType="com.anshun.dms.vo.AiUserMemoryVO">
+    SELECT memory_id, memory_type, content, source, create_time
+    FROM ai_user_memory WHERE user_id=#{userId} AND content_hash=#{contentHash}
+  </select>
+  <insert id="insert" useGeneratedKeys="true" keyProperty="memoryId" keyColumn="memory_id">
+    INSERT INTO ai_user_memory (user_id, memory_type, content, content_hash, source)
+    VALUES (#{userId}, #{memoryType}, #{content}, #{contentHash}, #{source})
+  </insert>
+  <delete id="delete">
+    DELETE FROM ai_user_memory WHERE user_id=#{userId} AND memory_id=#{memoryId}
+  </delete>
+</mapper>

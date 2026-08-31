@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.anshun.dms.mapper.AuthMapper">
+  <select id="findByUsername" resultType="com.anshun.dms.model.auth.AuthUser">
+    SELECT user_id, username, password_hash, nickname, role, status, token_version,
+           failed_login_attempts, locked_until, create_time
+    FROM t_user WHERE username=#{username}
+  </select>
+
+  <select id="findTokenState" resultType="com.anshun.dms.model.auth.UserTokenState">
+    SELECT user_id, username, status, token_version FROM t_user WHERE user_id=#{userId}
+  </select>
+
+  <insert id="insertUser">
+    INSERT INTO t_user (username, password_hash, nickname, role, status)
+    VALUES (#{username}, #{passwordHash}, #{nickname}, 'user', 'active')
+  </insert>
+
+  <insert id="assignViewerRole">
+    INSERT INTO sys_user_role (user_id, role_id)
+    SELECT u.user_id, r.role_id FROM t_user u JOIN sys_role r ON r.role_code='VIEWER'
+    WHERE u.username=#{username}
+  </insert>
+
+  <update id="recordLoginFailure">
+    UPDATE t_user
+    SET failed_login_attempts=failed_login_attempts+1,
+        locked_until=CASE WHEN failed_login_attempts &gt;= #{maxAttempts}
+          THEN #{lockedUntil} ELSE locked_until END
+    WHERE user_id=#{userId}
+  </update>
+
+  <update id="resetLoginFailures">
+    UPDATE t_user SET failed_login_attempts=0, locked_until=NULL WHERE user_id=#{userId}
+  </update>
+
+  <select id="selectRoleCodes" resultType="string">
+    SELECT r.role_code FROM sys_role r JOIN sys_user_role ur ON ur.role_id=r.role_id
+    WHERE ur.user_id=#{userId} AND r.status='active' ORDER BY r.role_id
+  </select>
+
+  <select id="selectPermissionCodes" resultType="string">
+    SELECT DISTINCT p.permission_code FROM sys_permission p
+    JOIN sys_role_permission rp ON rp.permission_id=p.permission_id
+    JOIN sys_user_role ur ON ur.role_id=rp.role_id
+    JOIN sys_role r ON r.role_id=ur.role_id
+    WHERE ur.user_id=#{userId} AND r.status='active' ORDER BY p.permission_code
+  </select>
+</mapper>

@@ -1,0 +1,22 @@
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+    expiration-hours: ${JWT_EXPIRATION_HOURS:1}
+  security:
+    token-blacklist-enabled: true
+    token-blacklist-fail-closed: true
+    registration-enabled: ${REGISTRATION_ENABLED:false}
+  storage:
+    access-key: ${MINIO_ACCESS_KEY}
+    secret-key: ${MINIO_SECRET_KEY}
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+management:
+  endpoint:
+    health:
+      show-details: never

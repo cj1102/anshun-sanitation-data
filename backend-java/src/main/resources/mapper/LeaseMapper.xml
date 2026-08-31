@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.anshun.dms.mapper.LeaseMapper">
+  <sql id="pageWhere">
+    WHERE l.deleted=0
+    <if test="search != null and search != ''">
+      AND (l.contract_code LIKE CONCAT('%', #{search}, '%') OR l.ad_location LIKE CONCAT('%', #{search}, '%') OR l.ad_position_code LIKE CONCAT('%', #{search}, '%'))
+    </if>
+    <if test="lesseeCompany != null and lesseeCompany != ''"> AND l.lessee_company LIKE CONCAT('%', #{lesseeCompany}, '%')</if>
+    <if test="approvalStatus != null and approvalStatus != ''"> AND l.approval_status = #{approvalStatus}</if>
+  </sql>
+  <select id="countPage" resultType="long">SELECT COUNT(*) FROM t_ad_lease_detail l <include refid="pageWhere"/></select>
+  <select id="selectPage" resultType="com.anshun.dms.vo.LeaseVO">
+    SELECT l.ad_lease_id, l.contract_code, l.ad_position_code, l.ad_location, l.single_side_area, l.total_ad_area,
+      l.ad_specification, l.lessee_code, l.lessee_company, l.lease_rent, l.lease_term, l.lease_start_date,
+      l.lease_end_date, l.contract_sign_date, l.version, l.approval_status, l.submitted_by_username, l.submitted_at,
+      l.approver_username, l.approved_at, l.approval_comment,
+      (SELECT COUNT(*) FROM t_ad_lease_attachment a WHERE a.ad_lease_id=l.ad_lease_id) AS attachment_count
+    FROM t_ad_lease_detail l <include refid="pageWhere"/>
+    ORDER BY l.lease_start_date DESC LIMIT #{limit} OFFSET #{offset}
+  </select>
+  <select id="selectById" resultType="com.anshun.dms.vo.LeaseVO">
+    SELECT ad_lease_id, contract_code, ad_position_code, ad_location, single_side_area, total_ad_area, ad_specification,
+      lessee_code, lessee_company, lease_rent, lease_term, lease_start_date, lease_end_date, contract_sign_date, version,
+      approval_status, submitted_by_username, submitted_at, approver_username, approved_at, approval_comment,
+      (SELECT COUNT(*) FROM t_ad_lease_attachment a WHERE a.ad_lease_id=l.ad_lease_id) AS attachment_count
+    FROM t_ad_lease_detail l WHERE ad_lease_id=#{id} AND deleted=0
+  </select>
+  <select id="countOverlappingLeases" resultType="long">
+    SELECT COUNT(*) FROM t_ad_lease_detail
+    WHERE ad_position_code=#{adPositionCode} AND deleted=0 AND approval_status='APPROVED'
+      AND lease_start_date &lt;= #{leaseEndDate} AND lease_end_date &gt;= #{leaseStartDate}
+    <if test="excludeLeaseId != null">AND ad_lease_id != #{excludeLeaseId}</if>
+  </select>
+  <insert id="insert">
+    INSERT INTO t_ad_lease_detail (contract_code, ad_position_code, ad_location, single_side_area, total_ad_area,
+      ad_specification, lessee_code, lessee_company, lease_rent, lease_term, lease_start_date, lease_end_date, contract_sign_date, approval_status)
+    VALUES (#{contractCode}, #{adPositionCode}, #{adLocation}, #{singleSideArea}, #{totalAdArea}, #{adSpecification},
+      #{lesseeCode}, #{lesseeCompany}, #{leaseRent}, #{leaseTerm}, #{leaseStartDate}, #{leaseEndDate}, #{contractSignDate}, #{approvalStatus})
+  </insert>
+  <update id="update">
+    UPDATE t_ad_lease_detail SET contract_code=#{lease.contractCode}, ad_position_code=#{lease.adPositionCode},
+      ad_location=#{lease.adLocation}, single_side_area=#{lease.singleSideArea}, total_ad_area=#{lease.totalAdArea},
+      ad_specification=#{lease.adSpecification}, lessee_code=#{lease.lesseeCode}, lessee_company=#{lease.lesseeCompany},
+      lease_rent=#{lease.leaseRent}, lease_term=#{lease.leaseTerm}, lease_start_date=#{lease.leaseStartDate},
+      lease_end_date=#{lease.leaseEndDate}, contract_sign_date=#{lease.contractSignDate}, version=version+1
+    WHERE ad_lease_id=#{lease.adLeaseId} AND version=#{expectedVersion} AND deleted=0
+  </update>
+  <update id="submitForApproval">
+    UPDATE t_ad_lease_detail SET approval_status='PENDING', submitted_by_username=#{username}, submitted_at=NOW(),
+      approver_username=NULL, approved_at=NULL, approval_comment=NULL, version=version+1
+    WHERE ad_lease_id=#{id} AND version=#{expectedVersion} AND approval_status IN ('DRAFT', 'REJECTED') AND deleted=0
+  </update>
+  <update id="decideApproval">
+    UPDATE t_ad_lease_detail SET approval_status=#{approvalStatus}, approver_username=#{username}, approved_at=NOW(),
+      approval_comment=#{comment}, version=version+1
+    WHERE ad_lease_id=#{id} AND version=#{expectedVersion} AND approval_status='PENDING' AND deleted=0
+  </update>
+  <update id="logicalDelete">
+    UPDATE t_ad_lease_detail SET deleted=1, version=version+1
+    WHERE ad_lease_id=#{id} AND version=#{expectedVersion} AND deleted=0
+      AND approval_status IN ('DRAFT', 'REJECTED')
+  </update>
+</mapper>

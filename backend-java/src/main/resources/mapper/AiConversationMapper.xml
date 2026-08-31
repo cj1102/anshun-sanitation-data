@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.anshun.dms.mapper.AiConversationMapper">
+  <select id="selectUserId" resultType="int">
+    SELECT user_id FROM t_user WHERE username=#{username} AND status='active'
+  </select>
+  <select id="selectConversationForUser" resultType="com.anshun.dms.mapper.AiConversationMapper$ConversationOwner">
+    SELECT conversation_id, user_id, title
+    FROM ai_conversation
+    WHERE conversation_id=#{conversationId} AND user_id=#{userId} AND deleted=0
+  </select>
+  <select id="countConversations" resultType="long">
+    SELECT COUNT(*) FROM ai_conversation WHERE user_id=#{userId} AND deleted=0
+  </select>
+  <select id="selectConversations" resultType="com.anshun.dms.vo.AiConversationSummaryVO">
+    SELECT c.conversation_id, c.title,
+      COALESCE((SELECT m.content FROM ai_chat_message m WHERE m.conversation_id=c.conversation_id ORDER BY m.message_id DESC LIMIT 1), '') AS preview,
+      c.last_message_at
+    FROM ai_conversation c
+    WHERE c.user_id=#{userId} AND c.deleted=0
+    ORDER BY c.last_message_at DESC, c.conversation_id DESC
+    LIMIT #{limit} OFFSET #{offset}
+  </select>
+  <select id="selectMessages" resultType="com.anshun.dms.vo.AiChatMessageVO">
+    SELECT message_id, role, content, model, create_time
+    FROM ai_chat_message WHERE conversation_id=#{conversationId}
+    ORDER BY message_id ASC
+  </select>
+  <select id="selectRecentMessages" resultType="com.anshun.dms.mapper.AiConversationMapper$MessageContext">
+    SELECT role, content FROM (
+      SELECT message_id, role, content FROM ai_chat_message
+      WHERE conversation_id=#{conversationId}
+      ORDER BY message_id DESC LIMIT #{limit}
+    ) recent_messages ORDER BY message_id ASC
+  </select>
+  <insert id="insertConversation" useGeneratedKeys="true" keyProperty="conversationId" keyColumn="conversation_id">
+    INSERT INTO ai_conversation (user_id, title) VALUES (#{userId}, #{title})
+  </insert>
+  <insert id="insertMessage">
+    INSERT INTO ai_chat_message (conversation_id, role, content, model, page_context)
+    VALUES (#{conversationId}, #{role}, #{content}, #{model}, #{pageContext})
+  </insert>
+  <update id="touchConversation">
+    UPDATE ai_conversation SET last_message_at=CURRENT_TIMESTAMP WHERE conversation_id=#{conversationId} AND deleted=0
+  </update>
+  <update id="logicalDelete">
+    UPDATE ai_conversation SET deleted=1 WHERE conversation_id=#{conversationId} AND user_id=#{userId} AND deleted=0
+  </update>
+</mapper>

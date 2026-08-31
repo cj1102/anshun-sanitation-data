@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.anshun.dms.mapper.AiAgentTraceMapper">
+  <select id="selectUserId" resultType="int">
+    SELECT user_id FROM t_user WHERE username=#{username} AND status='active'
+  </select>
+  <select id="countRuns" resultType="long">
+    SELECT COUNT(*) FROM ai_agent_run WHERE user_id=#{userId} AND run_type='ONLINE'
+  </select>
+  <select id="selectRuns" resultType="com.anshun.dms.vo.AiAgentRunVO">
+    SELECT run_id, conversation_id, model, page_context, request_id, status, tool_call_count,
+      duration_ms, error_message, create_time, complete_time
+    FROM ai_agent_run WHERE user_id=#{userId} AND run_type='ONLINE'
+    ORDER BY run_id DESC LIMIT #{limit} OFFSET #{offset}
+  </select>
+  <insert id="insertRun" useGeneratedKeys="true" keyProperty="runId" keyColumn="run_id">
+    INSERT INTO ai_agent_run (user_id, model, page_context, request_id, run_type)
+    VALUES (#{userId}, #{model}, #{pageContext}, #{requestId}, #{runType})
+  </insert>
+  <update id="completeRun">
+    UPDATE ai_agent_run SET conversation_id=#{conversationId}, status=#{status}, tool_call_count=#{toolCallCount},
+      duration_ms=#{durationMs}, error_message=#{errorMessage}, complete_time=CURRENT_TIMESTAMP
+    WHERE run_id=#{runId}
+  </update>
+  <insert id="insertToolCall">
+    INSERT INTO ai_agent_tool_call (run_id, sequence_no, provider_call_id, tool_name, arguments_summary,
+      result_summary, success, duration_ms, error_message)
+    VALUES (#{runId}, #{sequenceNo}, #{providerCallId}, #{toolName}, #{argumentsSummary},
+      #{resultSummary}, #{success}, #{durationMs}, #{errorMessage})
+  </insert>
+</mapper>

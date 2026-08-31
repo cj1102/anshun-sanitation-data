@@ -1,0 +1,17 @@
+.DS_Store
+.idea/
+*.iml
+*.log
+/data/
+
+**/.env
+!**/.env.example
+
+backend-java/target/
+dms/node_modules/
+dms/dist/
+dms/dist-server/
+data/.venv/
+data/__pycache__/
+data/db_config.json
+dms/db_config.json

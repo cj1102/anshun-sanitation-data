@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.anshun.dms.mapper.SystemUserMapper">
+  <sql id="userSearch">
+    <if test="search != null and search != ''">
+      WHERE u.username LIKE CONCAT('%', #{search}, '%') OR u.nickname LIKE CONCAT('%', #{search}, '%')
+    </if>
+  </sql>
+
+  <select id="countUsers" resultType="long">
+    SELECT COUNT(*) FROM t_user u <include refid="userSearch"/>
+  </select>
+
+  <select id="selectUsers" resultType="map">
+    SELECT u.user_id, u.username, u.nickname, u.status, u.create_time,
+           COALESCE(GROUP_CONCAT(r.role_code ORDER BY r.role_id SEPARATOR ','), '') AS roles
+    FROM t_user u
+    LEFT JOIN sys_user_role ur ON ur.user_id=u.user_id
+    LEFT JOIN sys_role r ON r.role_id=ur.role_id
+    <include refid="userSearch"/>
+    GROUP BY u.user_id, u.username, u.nickname, u.status, u.create_time
+    ORDER BY u.user_id ASC LIMIT #{limit} OFFSET #{offset}
+  </select>
+
+  <select id="selectRoles" resultType="map">
+    SELECT role_id, role_code, role_name, description, status FROM sys_role ORDER BY role_id
+  </select>
+
+  <select id="selectPermissions" resultType="map">
+    SELECT permission_code, permission_name, module_name FROM sys_permission ORDER BY module_name, permission_code
+  </select>
+
+  <select id="countUser" resultType="int">
+    SELECT COUNT(*) FROM t_user WHERE user_id=#{userId}
+  </select>
+
+  <select id="countActiveRoles" resultType="int">
+    SELECT COUNT(*) FROM sys_role WHERE status='active' AND role_code IN
+    <foreach collection="roleCodes" item="roleCode" open="(" separator="," close=")">#{roleCode}</foreach>
+  </select>
+
+  <select id="selectAdminUserIdsForUpdate" resultType="long">
+    SELECT ur.user_id FROM sys_user_role ur
+    JOIN sys_role r ON r.role_id=ur.role_id
+    WHERE r.role_code='ADMIN' AND r.status='active'
+    ORDER BY ur.user_id FOR UPDATE
+  </select>
+
+  <delete id="deleteUserRoles">DELETE FROM sys_user_role WHERE user_id=#{userId}</delete>
+
+  <insert id="insertUserRoles">
+    INSERT INTO sys_user_role (user_id, role_id)
+    SELECT #{userId}, role_id FROM sys_role WHERE status='active' AND role_code IN
+    <foreach collection="roleCodes" item="roleCode" open="(" separator="," close=")">#{roleCode}</foreach>
+  </insert>
+
+  <update id="incrementTokenVersion">
+    UPDATE t_user SET token_version=token_version+1 WHERE user_id=#{userId}
+  </update>
+</mapper>

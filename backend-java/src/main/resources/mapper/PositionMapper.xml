@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.anshun.dms.mapper.PositionMapper">
+  <sql id="pageWhere">
+    WHERE p.deleted = 0
+    <if test="district != null and district != ''"> AND p.district = #{district}</if>
+    <if test="status != null and status != ''"> AND p.status = #{status}</if>
+    <if test="search != null and search != ''">
+      AND (p.ad_location LIKE CONCAT('%', #{search}, '%') OR p.road_name LIKE CONCAT('%', #{search}, '%') OR p.ad_position_code LIKE CONCAT('%', #{search}, '%'))
+    </if>
+  </sql>
+
+  <select id="countPage" resultType="long">
+    SELECT COUNT(*) FROM t_ad_position p <include refid="pageWhere"/>
+  </select>
+
+  <select id="selectPage" resultType="com.anshun.dms.vo.PositionVO">
+    SELECT p.ad_position_id, p.ad_position_code, p.ad_location, p.single_side_area, p.total_ad_area,
+      p.ad_specification, p.longitude, p.latitude, p.district, p.road_name, p.remark, p.version,
+      CASE WHEN EXISTS (SELECT 1 FROM t_ad_lease_detail l WHERE l.ad_position_code=p.ad_position_code
+        AND l.deleted=0 AND l.approval_status='APPROVED' AND CURRENT_DATE BETWEEN l.lease_start_date AND l.lease_end_date) THEN 'leased' ELSE 'vacant' END AS status
+    FROM t_ad_position p <include refid="pageWhere"/>
+    ORDER BY p.ad_position_id ASC LIMIT #{limit} OFFSET #{offset}
+  </select>
+
+  <select id="selectByCode" resultType="com.anshun.dms.vo.PositionVO">
+    SELECT p.ad_position_id, p.ad_position_code, p.ad_location, p.single_side_area, p.total_ad_area,
+      p.ad_specification, p.longitude, p.latitude, p.district, p.road_name, p.remark, p.version,
+      CASE WHEN EXISTS (SELECT 1 FROM t_ad_lease_detail l WHERE l.ad_position_code=p.ad_position_code
+        AND l.deleted=0 AND l.approval_status='APPROVED' AND CURRENT_DATE BETWEEN l.lease_start_date AND l.lease_end_date) THEN 'leased' ELSE 'vacant' END AS status
+    FROM t_ad_position p WHERE p.ad_position_code=#{code} AND p.deleted=0
+  </select>
+
+  <select id="selectActiveForUpdate" resultType="com.anshun.dms.vo.PositionVO">
+    SELECT p.ad_position_id, p.ad_position_code, p.ad_location, p.single_side_area, p.total_ad_area,
+      p.ad_specification, p.longitude, p.latitude, p.district, p.road_name, p.remark, p.version,
+      CASE WHEN EXISTS (SELECT 1 FROM t_ad_lease_detail l WHERE l.ad_position_code=p.ad_position_code
+        AND l.deleted=0 AND l.approval_status='APPROVED' AND CURRENT_DATE BETWEEN l.lease_start_date AND l.lease_end_date) THEN 'leased' ELSE 'vacant' END AS status
+    FROM t_ad_position p WHERE p.ad_position_code=#{code} AND p.deleted=0 FOR UPDATE
+  </select>
+
+  <insert id="insert">
+    INSERT INTO t_ad_position (ad_position_code, ad_location, single_side_area, total_ad_area, ad_specification,
+      longitude, latitude, district, road_name, status, remark)
+    VALUES (#{adPositionCode}, #{adLocation}, #{singleSideArea}, #{totalAdArea}, #{adSpecification},
+      #{longitude}, #{latitude}, #{district}, #{roadName}, #{status}, #{remark})
+  </insert>
+
+  <update id="update">
+    UPDATE t_ad_position SET ad_location=#{position.adLocation}, single_side_area=#{position.singleSideArea},
+      total_ad_area=#{position.totalAdArea}, ad_specification=#{position.adSpecification}, longitude=#{position.longitude},
+      latitude=#{position.latitude}, district=#{position.district}, road_name=#{position.roadName},
+      status=#{position.status}, remark=#{position.remark}, version=version+1
+    WHERE ad_position_code=#{code} AND version=#{expectedVersion} AND deleted=0
+  </update>
+
+  <select id="countBlockingLeases" resultType="long">
+    SELECT COUNT(*)
+    FROM t_ad_lease_detail
+    WHERE ad_position_code=#{code} AND deleted=0
+      AND (
+        approval_status IN ('DRAFT', 'PENDING', 'REJECTED')
+        OR (approval_status='APPROVED' AND lease_end_date &gt;= CURRENT_DATE)
+      )
+  </select>
+
+  <update id="logicalDelete">
+    UPDATE t_ad_position SET deleted=1, version=version+1
+    WHERE ad_position_code=#{code} AND version=#{expectedVersion} AND deleted=0
+  </update>
+
+  <select id="selectValuation" resultType="com.anshun.dms.vo.PositionValuationVO">
+    SELECT valuation_id, ad_position_code, ad_location, single_side_area, total_ad_area, ad_specification, ad_count,
+      discounted_rent, total_assessed_value, valuation_date, lessee_company, valuation_method
+    FROM t_ad_position_valuation WHERE ad_position_code=#{code} ORDER BY valuation_id DESC LIMIT 1
+  </select>
+
+  <select id="selectLeaseHistory" resultType="com.anshun.dms.vo.LeaseVO">
+    SELECT ad_lease_id, contract_code, ad_position_code, ad_location, single_side_area, total_ad_area, ad_specification,
+      lessee_code, lessee_company, lease_rent, lease_term, lease_start_date, lease_end_date, contract_sign_date, version,
+      0 AS attachment_count, approval_status, submitted_by_username, submitted_at, approver_username, approved_at, approval_comment
+    FROM t_ad_lease_detail WHERE ad_position_code=#{code} AND deleted=0 ORDER BY lease_start_date DESC
+  </select>
+</mapper>

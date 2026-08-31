@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.anshun.dms.mapper.AiPendingActionMapper">
+  <select id="selectUserId" resultType="int">
+    SELECT user_id FROM t_user WHERE username=#{username} AND status='active'
+  </select>
+  <sql id="actionColumns">
+    action_id, user_id, agent_run_id, conversation_id, action_type, required_permission, status,
+    payload_json, payload_hash, result_json, summary, page_context, request_id, expires_at,
+    confirmed_at, executed_at, error_message, create_time
+  </sql>
+  <select id="selectForUser" resultType="com.anshun.dms.mapper.AiPendingActionMapper$ActionRecord">
+    SELECT <include refid="actionColumns"/> FROM ai_pending_action
+    WHERE user_id=#{userId} AND action_id=#{actionId}
+  </select>
+  <select id="selectPendingForUser" resultType="com.anshun.dms.mapper.AiPendingActionMapper$ActionRecord">
+    SELECT <include refid="actionColumns"/> FROM ai_pending_action
+    WHERE user_id=#{userId} AND status='PENDING_CONFIRMATION' AND expires_at &gt; CURRENT_TIMESTAMP
+    ORDER BY create_time DESC LIMIT 20
+  </select>
+  <insert id="insert">
+    INSERT INTO ai_pending_action (action_id, user_id, agent_run_id, action_type, required_permission,
+      payload_json, payload_hash, summary, page_context, request_id, expires_at)
+    VALUES (#{actionId}, #{userId}, #{agentRunId}, #{actionType}, #{requiredPermission},
+      #{payloadJson}, #{payloadHash}, #{summary}, #{pageContext}, #{requestId}, #{expiresAt})
+  </insert>
+  <update id="claimForExecution">
+    UPDATE ai_pending_action SET status='EXECUTING', confirmed_at=CURRENT_TIMESTAMP
+    WHERE user_id=#{userId} AND action_id=#{actionId} AND status='PENDING_CONFIRMATION'
+      AND expires_at &gt; CURRENT_TIMESTAMP
+  </update>
+  <update id="markExecuted">
+    UPDATE ai_pending_action SET status='EXECUTED', result_json=#{resultJson}, executed_at=CURRENT_TIMESTAMP,
+      error_message=NULL WHERE user_id=#{userId} AND action_id=#{actionId} AND status='EXECUTING'
+  </update>
+  <update id="markFailed">
+    UPDATE ai_pending_action SET status='FAILED', error_message=#{errorMessage}
+    WHERE user_id=#{userId} AND action_id=#{actionId} AND status='EXECUTING'
+  </update>
+  <update id="markExpired">
+    UPDATE ai_pending_action SET status='EXPIRED', error_message='确认操作已过期'
+    WHERE user_id=#{userId} AND action_id=#{actionId} AND status='PENDING_CONFIRMATION'
+  </update>
+  <update id="cancel">
+    UPDATE ai_pending_action SET status='CANCELLED', error_message='用户取消待确认操作'
+    WHERE user_id=#{userId} AND action_id=#{actionId} AND status='PENDING_CONFIRMATION'
+  </update>
+  <update id="cancelPendingForRun">
+    UPDATE ai_pending_action SET status='CANCELLED', error_message=#{errorMessage}
+    WHERE agent_run_id=#{agentRunId} AND status='PENDING_CONFIRMATION'
+  </update>
+  <update id="bindConversation">
+    UPDATE ai_pending_action SET conversation_id=#{conversationId}
+    WHERE action_id IN
+    <foreach collection="actionIds" item="actionId" open="(" separator="," close=")">#{actionId}</foreach>
+  </update>
+</mapper>

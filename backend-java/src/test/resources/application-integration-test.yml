@@ -1,0 +1,14 @@
+spring:
+  cache:
+    type: simple
+
+app:
+  security:
+    token-blacklist-enabled: false
+    login-rate-limit:
+      redis-enabled: false
+  ai:
+    rate-limit:
+      redis-enabled: false
+    vector-store:
+      enabled: false

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.anshun.dms.mapper.AiAgentEvaluationMapper">
+  <select id="selectActiveUserId" resultType="int">SELECT user_id FROM t_user WHERE username=#{username} AND status='active'</select>
+  <select id="selectRunMetrics" resultType="com.anshun.dms.mapper.AiAgentEvaluationMapper$EvaluationMetrics">
+    SELECT COUNT(*) total_runs, COALESCE(SUM(status='SUCCEEDED'), 0) succeeded_runs,
+      COALESCE(SUM(status='FAILED'), 0) failed_runs, COALESCE(ROUND(AVG(duration_ms)), 0) average_duration_ms
+    FROM ai_agent_run WHERE run_type='ONLINE' AND create_time &gt;= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL #{days} DAY)
+  </select>
+  <select id="selectToolMetrics" resultType="com.anshun.dms.mapper.AiAgentEvaluationMapper$ToolMetrics">
+    SELECT COUNT(*) total_tool_calls, COALESCE(SUM(success=0), 0) failed_tool_calls
+    FROM ai_agent_tool_call c JOIN ai_agent_run r ON r.run_id=c.run_id
+    WHERE r.run_type='ONLINE' AND c.create_time &gt;= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL #{days} DAY)
+  </select>
+  <select id="selectFeedbackMetrics" resultType="com.anshun.dms.mapper.AiAgentEvaluationMapper$FeedbackMetrics">
+    SELECT COUNT(*) feedback_total, COALESCE(SUM(rating='UP'), 0) positive_feedback,
+      COALESCE(SUM(rating='DOWN'), 0) negative_feedback
+    FROM ai_agent_feedback WHERE create_time &gt;= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL #{days} DAY)
+  </select>
+  <select id="selectCases" resultType="com.anshun.dms.vo.AiAgentEvaluationCaseVO">
+    SELECT case_id, case_name, question, page_context, expected_tool_name, expected_keywords, enabled, creator_username, create_time
+    FROM ai_agent_evaluation_case ORDER BY case_id DESC
+  </select>
+  <select id="selectCase" resultType="com.anshun.dms.vo.AiAgentEvaluationCaseVO">
+    SELECT case_id, case_name, question, page_context, expected_tool_name, expected_keywords, enabled, creator_username, create_time
+    FROM ai_agent_evaluation_case WHERE case_id=#{caseId}
+  </select>
+  <select id="selectResults" resultType="com.anshun.dms.vo.AiAgentEvaluationResultVO">
+    SELECT r.result_id, r.case_id, c.case_name, r.agent_run_id, r.model, r.actual_tools,
+      r.expected_tool_matched, r.expected_keywords_matched, r.passed, r.detail, r.duration_ms,
+      r.evaluator_username, r.create_time
+    FROM ai_agent_evaluation_result r JOIN ai_agent_evaluation_case c ON c.case_id=r.case_id
+    ORDER BY r.result_id DESC LIMIT #{limit}
+  </select>
+  <insert id="insertCase" useGeneratedKeys="true" keyProperty="caseId" keyColumn="case_id">
+    INSERT INTO ai_agent_evaluation_case (case_name, question, page_context, expected_tool_name, expected_keywords, creator_id, creator_username)
+    VALUES (#{caseName}, #{question}, #{pageContext}, #{expectedToolName}, #{expectedKeywords}, #{creatorId}, #{creatorUsername})
+  </insert>
+  <insert id="insertResult" useGeneratedKeys="true" keyProperty="resultId" keyColumn="result_id">
+    INSERT INTO ai_agent_evaluation_result (case_id, agent_run_id, model, actual_tools, expected_tool_matched,
+      expected_keywords_matched, passed, detail, duration_ms, evaluator_username)
+    VALUES (#{caseId}, #{agentRunId}, #{model}, #{actualTools}, #{expectedToolMatched}, #{expectedKeywordsMatched},
+      #{passed}, #{detail}, #{durationMs}, #{evaluatorUsername})
+  </insert>
+</mapper>

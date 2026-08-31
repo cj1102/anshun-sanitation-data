@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.anshun.dms.mapper.LeaseAttachmentMapper">
+  <select id="leaseExists" resultType="boolean">
+    SELECT EXISTS(SELECT 1 FROM t_ad_lease_detail WHERE ad_lease_id=#{leaseId} AND deleted=0)
+  </select>
+  <select id="selectList" resultType="com.anshun.dms.vo.LeaseAttachmentVO">
+    SELECT attachment_id, original_filename, content_type, file_size, uploader_username, create_time
+    FROM t_ad_lease_attachment WHERE ad_lease_id=#{leaseId} ORDER BY attachment_id DESC
+  </select>
+  <select id="selectStorageRecord" resultType="com.anshun.dms.mapper.LeaseAttachmentMapper$AttachmentStorageRecord">
+    SELECT attachment_id, ad_lease_id AS lease_id, original_filename, object_name, content_type, file_size, uploader_id, uploader_username
+    FROM t_ad_lease_attachment WHERE attachment_id=#{attachmentId} AND ad_lease_id=#{leaseId}
+  </select>
+  <select id="selectUserId" resultType="int">SELECT user_id FROM t_user WHERE username=#{username}</select>
+  <insert id="insert">
+    INSERT INTO t_ad_lease_attachment (ad_lease_id, original_filename, object_name, content_type, file_size, uploader_id, uploader_username)
+    VALUES (#{leaseId}, #{originalFilename}, #{objectName}, #{contentType}, #{fileSize}, #{uploaderId}, #{uploaderUsername})
+  </insert>
+  <delete id="delete">DELETE FROM t_ad_lease_attachment WHERE attachment_id=#{attachmentId} AND ad_lease_id=#{leaseId}</delete>
+</mapper>

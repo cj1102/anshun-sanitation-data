@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.anshun.dms.mapper.StorageCleanupMapper">
+  <insert id="enqueue">
+    INSERT INTO storage_cleanup_task (object_name)
+    VALUES (#{objectName})
+    ON DUPLICATE KEY UPDATE next_attempt_at=LEAST(next_attempt_at, CURRENT_TIMESTAMP), last_error=NULL
+  </insert>
+  <select id="selectDue" resultType="com.anshun.dms.mapper.StorageCleanupMapper$CleanupTask">
+    SELECT cleanup_id, object_name, attempts
+    FROM storage_cleanup_task
+    WHERE next_attempt_at &lt;= #{now}
+    ORDER BY next_attempt_at ASC, cleanup_id ASC
+    LIMIT #{limit}
+  </select>
+  <delete id="complete">DELETE FROM storage_cleanup_task WHERE cleanup_id=#{cleanupId}</delete>
+  <update id="reschedule">
+    UPDATE storage_cleanup_task
+    SET attempts=attempts+1, next_attempt_at=#{nextAttemptAt}, last_error=#{lastError}
+    WHERE cleanup_id=#{cleanupId}
+  </update>
+</mapper>
